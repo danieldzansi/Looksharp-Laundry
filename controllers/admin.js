@@ -6,7 +6,7 @@ const createToken=(id)=>{
     return jwt.sign({id},process.env.JWT_SECRET)
 };
 
-export const adminLogin= async (req,res)=>{
+const adminLogin= async (req,res)=>{
     try {
         const {email,password}=req.body;
         if (email===process.env.ADMIN_EMAIL && password===process.env.ADMIN_PASSWORD){
@@ -20,3 +20,5 @@ export const adminLogin= async (req,res)=>{
         res.json({sucess:false,message :error.message})
     }
 }
+
+export default adminLogin

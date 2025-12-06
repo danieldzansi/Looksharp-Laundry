@@ -1,7 +1,9 @@
+import {pgTable,text} from "drizzle-orm/pg-core"
 
-
-
-export const admin=pgTable('admin',{
+const admin=pgTable('admin',{
     email :text ("email").notNull().unique(),
     password:text("password").notNull().unique(),
 });
+
+
+export default admin
