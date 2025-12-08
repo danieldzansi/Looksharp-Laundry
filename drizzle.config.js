@@ -1,14 +1,15 @@
-import {defineConfig} from 'drizzle-kit'
+import { defineConfig } from "drizzle-kit";
+import dotenv from "dotenv";
 
-import * as dotenv from 'dotenv'
+dotenv.config();
 
-dotenv.config({path:path.resolve(__dirname,'.env')})
+console.log('DATABASE_URL loaded:', !!process.env.DATABASE_URL);
 
 export default defineConfig({
-    dialect:'postgressql',
-    schema:['./db/index.js',''],
-    out:'./drizzle',
-    dbCredentials:{
-        url:process.env.DATABASE_URL
-    },
+  dialect: "postgresql",
+  schema: ["./models/models.js"],
+  out: "./drizzle",
+  dbCredentials: {
+    url: process.env.DATABASE_URL, // ✅ Use 'url' instead of 'connectionString'
+  },
 });

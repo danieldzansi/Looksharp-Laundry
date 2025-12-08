@@ -1,13 +1,6 @@
 import pg from "pg"
 const {Pool} =pg 
 import {drizzle} from 'drizzle-orm/node-postgres'
-import {
-    pgTable,
-    text,
-    numeric,
-    timestamp,
-
-}from 'drizzle-orm/pg-core';
 
 
 const connectionString =process.env.DATABASE_URL;
