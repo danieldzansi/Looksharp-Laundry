@@ -7,9 +7,9 @@ console.log('DATABASE_URL loaded:', !!process.env.DATABASE_URL);
 
 export default defineConfig({
   dialect: "postgresql",
-  schema: ["./models/models.js"],
+  schema: ["./models/model.js"],
   out: "./drizzle",
   dbCredentials: {
-    url: process.env.DATABASE_URL, // ✅ Use 'url' instead of 'connectionString'
+    url: process.env.DATABASE_URL, 
   },
 });
