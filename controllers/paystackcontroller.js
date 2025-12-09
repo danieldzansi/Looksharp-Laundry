@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { paystack } from "../config/paystack.js";
+import { db } from "../db/index.js";
 import {
   customers,
   plans,
@@ -70,11 +71,11 @@ export const initializePayment = async (req, res) => {
       .where(eq(plans.id, planId))
       .limit(1);
     if (!plan.length)
-      return res.status(400).json({ message: "plan not found" });
+      return res.status(400).json({ success: false, message: "plan not found" });
 
     const price = plan[0].price;
-    if (!price)
-      return res.status(400).json({ message: "plan requires custom quote" });
+    if (!price || price === "0.00")
+      return res.status(400).json({ success: false, message: "plan requires custom quote" });
 
     let customer = await db
       .select()
@@ -88,48 +89,63 @@ export const initializePayment = async (req, res) => {
         .returning();
       customer = inserted;
     }
-
     const paystackData = await paystack.post("/transaction/initialize", {
       email,
       amount: Number(price) * 100,
+      callback_url: `${process.env.BACKEND_URL}/api/paystack/verify`,
       metadata: {
         planId,
         customerId: customer[0].id,
         pickupDay,
         pickupTimeSlot,
         pickupFrequency,
+        autoRenew: false,
       },
     });
 
     res.json({ success: true, data: paystackData.data });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, message: "server error" });
+    console.error("Payment initialization error:", error);
+    res.status(500).json({ success: false, message: error.message || "server error" });
   }
 };
 
 export const verifyPayment = async (req, res) => {
   try {
     const reference = req.query.reference || req.query.trxref;
-    if (!reference)
-      return res.status(400).json({ message: "Missing transaction reference" });
+     
+    if (!reference) {
+      console.log("No reference provided");
+      return res.redirect(
+        `${process.env.FRONTEND_URL}/payment-failed?reason=no_reference`
+      );
+    }
 
     const data = await paystack.get(`/transaction/verify/${reference}`);
-    if (data.status !== "success")
-      return res.status(400).json({ message: "Payment not successful" });
+    
+    if (data.status !== true || data.data?.status !== "success") {
+      console.log("Payment not successful:", data);
+      return res.redirect(
+        `${process.env.FRONTEND_URL}/payment-failed?reference=${reference}&reason=payment_unsuccessful`
+      );
+    }
 
     const transaction = data.data;
     const { customerId, planId, pickupDay, pickupTimeSlot, pickupFrequency } =
       transaction.metadata;
-    const amount = transaction.amount;
-
+    const amount = transaction.amount / 100;
     const plan = await db
       .select()
       .from(plans)
       .where(eq(plans.id, planId))
       .limit(1);
-    if (!plan.length)
-      return res.status(404).json({ message: "plan not found" });
+      
+    if (!plan.length) {
+      console.log("Plan not found:", planId);
+      return res.redirect(
+        `${process.env.FRONTEND_URL}/payment-failed?reference=${reference}&reason=plan_not_found`
+      );
+    }
 
     const existingSub = await db
       .select()
@@ -147,7 +163,7 @@ export const verifyPayment = async (req, res) => {
         .values({
           customerId,
           planId,
-          amountPaid: amount / 100,
+          amountPaid: amount,
           status: "active",
           startDate,
           nextBillingDate,
@@ -161,7 +177,7 @@ export const verifyPayment = async (req, res) => {
       await db.insert(payments).values({
         customerId,
         subscriptionId: newSub[0].id,
-        amount: amount / 100,
+        amount: amount,
         currency: "GHS",
         status: "success",
         paystackReference: reference,
@@ -170,13 +186,13 @@ export const verifyPayment = async (req, res) => {
         transactionDate: new Date(transaction.paid_at),
         metadata: transaction.metadata,
       });
-
       const pickupDates = generatePickupDates(
         startDate,
         plan[0].pickupsPerMonth,
         pickupFrequency,
         pickupDay
       );
+
       for (const date of pickupDates) {
         await db.insert(pickups).values({
           subscriptionId: newSub[0].id,
@@ -187,15 +203,22 @@ export const verifyPayment = async (req, res) => {
           bagsCount: plan[0].bagsPerPickup,
         });
       }
-    }
 
-    res.json({
-      success: true,
-      message: "Payment verified, subscription and pickups created",
-    });
+      return res.redirect(
+        `${process.env.FRONTEND_URL}/payment-success?reference=${reference}&subscriptionId=${newSub[0].id}`
+      );
+    } else {
+      console.log("Customer already has subscription");
+      return res.redirect(
+        `${process.env.FRONTEND_URL}/payment-success?reference=${reference}&subscriptionId=${existingSub[0].id}&existing=true`
+      );
+    }
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "internal server error" });
+    console.error("Verify payment error:", error);
+    console.error("Error stack:", error.stack);
+    return res.redirect(
+      `${process.env.FRONTEND_URL}/payment-failed?error=${encodeURIComponent(error.message)}`
+    );
   }
 };
 
