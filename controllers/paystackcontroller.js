@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { paystack } from "../config/paystack.js";
 import { db } from "../db/index.js";
+import {sendSubscriptionEmails} from "../utils/Email.js"
 import {
   customers,
   plans,
@@ -203,6 +204,33 @@ export const verifyPayment = async (req, res) => {
           bagsCount: plan[0].bagsPerPickup,
         });
       }
+
+      
+const customer = await db
+  .select()
+  .from(customers)
+  .where(eq(customers.id, customerId))
+  .limit(1);
+
+await sendSubscriptionEmails({
+  customerEmail: customer[0].email,
+  customerName: `${customer[0].firstName} ${customer[0].lastName}`,
+  customerPhone: customer[0].phone,
+  customerAddress: customer[0].address,
+  planName: plan[0].name,
+  planPrice: plan[0].price,
+  startDate: startDate,
+  nextBillingDate: nextBillingDate,
+  pickupsPerMonth: plan[0].pickupsPerMonth,
+  bagsPerPickup: plan[0].bagsPerPickup,
+  pickupDay: pickupDay,
+  pickupTimeSlot: pickupTimeSlot,
+  pickupFrequency: pickupFrequency,
+  subscriptionId: newSub[0].id,
+  features: plan[0].features || [],
+  amountPaid: amount,
+  paystackReference: reference,
+});
 
       return res.redirect(
         `${process.env.FRONTEND_URL}/payment-success?reference=${reference}&subscriptionId=${newSub[0].id}`
