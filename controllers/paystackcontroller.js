@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { paystack } from "../config/paystack.js";
 import { db } from "../db/index.js";
-import {sendSubscriptionEmails} from "../utils/Email.js"
+import { sendSubscriptionEmails } from "../utils/Email.js";
 import {
   customers,
   plans,
@@ -72,11 +72,15 @@ export const initializePayment = async (req, res) => {
       .where(eq(plans.id, planId))
       .limit(1);
     if (!plan.length)
-      return res.status(400).json({ success: false, message: "plan not found" });
+      return res
+        .status(400)
+        .json({ success: false, message: "plan not found" });
 
     const price = plan[0].price;
     if (!price || price === "0.00")
-      return res.status(400).json({ success: false, message: "plan requires custom quote" });
+      return res
+        .status(400)
+        .json({ success: false, message: "plan requires custom quote" });
 
     let customer = await db
       .select()
@@ -107,14 +111,16 @@ export const initializePayment = async (req, res) => {
     res.json({ success: true, data: paystackData.data });
   } catch (error) {
     console.error("Payment initialization error:", error);
-    res.status(500).json({ success: false, message: error.message || "server error" });
+    res
+      .status(500)
+      .json({ success: false, message: error.message || "server error" });
   }
 };
 
 export const verifyPayment = async (req, res) => {
   try {
     const reference = req.query.reference || req.query.trxref;
-     
+
     if (!reference) {
       console.log("No reference provided");
       return res.redirect(
@@ -123,7 +129,7 @@ export const verifyPayment = async (req, res) => {
     }
 
     const data = await paystack.get(`/transaction/verify/${reference}`);
-    
+
     if (data.status !== true || data.data?.status !== "success") {
       console.log("Payment not successful:", data);
       return res.redirect(
@@ -140,7 +146,7 @@ export const verifyPayment = async (req, res) => {
       .from(plans)
       .where(eq(plans.id, planId))
       .limit(1);
-      
+
     if (!plan.length) {
       console.log("Plan not found:", planId);
       return res.redirect(
@@ -205,32 +211,31 @@ export const verifyPayment = async (req, res) => {
         });
       }
 
-      
-const customer = await db
-  .select()
-  .from(customers)
-  .where(eq(customers.id, customerId))
-  .limit(1);
+      const customer = await db
+        .select()
+        .from(customers)
+        .where(eq(customers.id, customerId))
+        .limit(1);
 
-await sendSubscriptionEmails({
-  customerEmail: customer[0].email,
-  customerName: `${customer[0].firstName} ${customer[0].lastName}`,
-  customerPhone: customer[0].phone,
-  customerAddress: customer[0].address,
-  planName: plan[0].name,
-  planPrice: plan[0].price,
-  startDate: startDate,
-  nextBillingDate: nextBillingDate,
-  pickupsPerMonth: plan[0].pickupsPerMonth,
-  bagsPerPickup: plan[0].bagsPerPickup,
-  pickupDay: pickupDay,
-  pickupTimeSlot: pickupTimeSlot,
-  pickupFrequency: pickupFrequency,
-  subscriptionId: newSub[0].id,
-  features: plan[0].features || [],
-  amountPaid: amount,
-  paystackReference: reference,
-});
+      await sendSubscriptionEmails({
+        customerEmail: customer[0].email,
+        customerName: `${customer[0].firstName} ${customer[0].lastName}`,
+        customerPhone: customer[0].phone,
+        customerAddress: customer[0].address,
+        planName: plan[0].name,
+        planPrice: plan[0].price,
+        startDate: startDate,
+        nextBillingDate: nextBillingDate,
+        pickupsPerMonth: plan[0].pickupsPerMonth,
+        bagsPerPickup: plan[0].bagsPerPickup,
+        pickupDay: pickupDay,
+        pickupTimeSlot: pickupTimeSlot,
+        pickupFrequency: pickupFrequency,
+        subscriptionId: newSub[0].id,
+        features: plan[0].features || [],
+        amountPaid: amount,
+        paystackReference: reference,
+      });
 
       return res.redirect(
         `${process.env.FRONTEND_URL}/payment-success?reference=${reference}&subscriptionId=${newSub[0].id}`
@@ -245,7 +250,9 @@ await sendSubscriptionEmails({
     console.error("Verify payment error:", error);
     console.error("Error stack:", error.stack);
     return res.redirect(
-      `${process.env.FRONTEND_URL}/payment-failed?error=${encodeURIComponent(error.message)}`
+      `${process.env.FRONTEND_URL}/payment-failed?error=${encodeURIComponent(
+        error.message
+      )}`
     );
   }
 };
@@ -261,18 +268,31 @@ export const paystackWebhook = async (req, res) => {
     return res.status(400).send("invalid signature");
 
   const event = req.body;
+
   if (event.event === "charge.success") {
+    const metadata = event.data.metadata;
     const { planId, customerId, pickupDay, pickupTimeSlot, pickupFrequency } =
-      event.data.metadata;
+      metadata;
+
     const amountPaid = event.data.amount / 100;
+
+    const existingSub = await db
+      .select()
+      .from(subscriptions)
+      .where(eq(subscriptions.customerId, customerId))
+      .limit(1);
+
+    if (existingSub.length) {
+      return res.sendStatus(200); 
+    }
 
     const plan = await db
       .select()
       .from(plans)
       .where(eq(plans.id, planId))
       .limit(1);
-    if (!plan.length)
-      return res.status(404).json({ message: "plan not found" });
+
+    if (!plan.length) return res.sendStatus(200);
 
     const startDate = new Date();
     const nextBillingDate = new Date();
@@ -301,6 +321,7 @@ export const paystackWebhook = async (req, res) => {
       currency: "GHS",
       status: "success",
       paystackReference: event.data.reference,
+      transactionDate: new Date(),
     });
 
     const pickupDates = generatePickupDates(
@@ -309,6 +330,7 @@ export const paystackWebhook = async (req, res) => {
       pickupFrequency,
       pickupDay
     );
+
     for (const date of pickupDates) {
       await db.insert(pickups).values({
         subscriptionId: newSub[0].id,
@@ -320,6 +342,34 @@ export const paystackWebhook = async (req, res) => {
       });
     }
 
-    res.sendStatus(200);
+    const customer = await db
+      .select()
+      .from(customers)
+      .where(eq(customers.id, customerId))
+      .limit(1);
+
+    await sendSubscriptionEmails({
+      customerEmail: customer[0].email,
+      customerName: `${customer[0].firstName} ${customer[0].lastName}`,
+      customerPhone: customer[0].phone,
+      customerAddress: customer[0].address,
+      planName: plan[0].name,
+      planPrice: plan[0].price,
+      startDate,
+      nextBillingDate,
+      pickupsPerMonth: plan[0].pickupsPerMonth,
+      bagsPerPickup: plan[0].bagsPerPickup,
+      pickupDay,
+      pickupTimeSlot,
+      pickupFrequency,
+      subscriptionId: newSub[0].id,
+      features: plan[0].features || [],
+      amountPaid,
+      paystackReference: event.data.reference,
+    });
+
+    return res.sendStatus(200); 
   }
+
+  res.sendStatus(200);
 };
