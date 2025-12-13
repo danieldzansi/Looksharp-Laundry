@@ -1,5 +1,5 @@
 {
-  "id": "8eea49db-6888-4152-a4a3-4cd788cf048f",
+  "id": "1e75083a-808f-4e41-8cd9-e64a1f05af60",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -487,6 +487,19 @@
           "notNull": false,
           "default": false
         },
+        "is_preferred": {
+          "name": "is_preferred",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "display_order": {
+          "name": "display_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
         "features": {
           "name": "features",
           "type": "jsonb",
@@ -598,6 +611,24 @@
         "end_date": {
           "name": "end_date",
           "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pickup_day": {
+          "name": "pickup_day",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pickup_time_slot": {
+          "name": "pickup_time_slot",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pickup_frequency": {
+          "name": "pickup_frequency",
+          "type": "varchar",
           "primaryKey": false,
           "notNull": false
         },

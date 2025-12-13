@@ -1,6 +1,6 @@
 import { db } from "../db/index.js";
 import { customers, plans, subscriptions } from "../models/model.js";
-import { eq } from "drizzle-orm";
+import { eq,asc } from "drizzle-orm";
 
 export const getAllSubscriptions = async (req, res) => {
   try {
@@ -37,7 +37,10 @@ export const getAllCustomers = async (req, res) => {
 
 export const getAllPlans = async (req, res) => {
   try {
-    const allPlans = await db.select().from(plans);
+    const allPlans = await db.select()
+      .from(plans)
+      .orderBy(asc(plans.displayOrder)); 
+    
     res.status(200).json({ success: true, data: allPlans });
   } catch (error) {
     console.error(error);

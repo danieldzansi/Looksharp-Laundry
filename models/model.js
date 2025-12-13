@@ -25,6 +25,8 @@ export const plans = pgTable(
     includesStainTreatment: boolean("includes_stain_treatment").default(false),
     priorityScheduling: boolean("priority_scheduling").default(false),
     expressDelivery: boolean("express_delivery").default(false),
+    isPreferred:boolean("is_preferred").default(false),
+    displayOrder: integer("display_order").notNull(),
     features: jsonb("features"),
     isActive: boolean("is_active").default(true),
     createdAt: timestamp("created_at").defaultNow(),
